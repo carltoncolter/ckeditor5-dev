@@ -29,7 +29,11 @@ module.exports = function repositoryResolver( name, cwd ) {
 		}
 	}
 
-	return parseRepositoryUrl( repositoryUrl, {
+	const x = parseRepositoryUrl( repositoryUrl, {
 		urlTemplate: 'https://github.com/${ path }.git'
 	} );
+
+	x.branch = 'ckeditor5/t/389';
+
+	return x;
 };
