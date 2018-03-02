@@ -53,31 +53,38 @@ module.exports = function serveTranslations( compiler, options, translationServi
 		}
 	}
 
-	// Add core translations before `translatesourceloader` starts translating.
-	compiler.plugin( 'after-resolvers', () => {
-		const resolver = compiler.resolvers.normal;
+	// Add core translations before `translateSourceLoader` starts translating.
+	compiler.hooks.normalModuleFactory.tap( 'CKEditor5Plugin', normalModuleFactory => {
+		const resolver = normalModuleFactory.getResolver( 'normal' );
+		const corePackageSampleResource = envUtils.getCorePackageSampleResource();
 
-		envUtils.getCorePackage( cwd, resolver ).then( corePackage => {
+		resolver.resolve( cwd, cwd, corePackageSampleResource, {}, ( err, pathToResource ) => {
+			if ( err ) {
+				console.error( err );
+
+				return;
+			}
+
+			const corePackage = envUtils.getCorePackagePath( pathToResource );
+
 			translationService.loadPackage( corePackage );
 		} );
 	} );
 
 	// Load translation files and add a loader if the package match requirements.
-	compiler.plugin( 'normal-module-factory', nmf => {
-		nmf.plugin( 'after-resolve', ( resolveOptions, done ) => {
-			const pathToPackage = envUtils.getPathToPackage( cwd, resolveOptions.resource );
-			resolveOptions.loaders = envUtils.getLoaders( cwd, resolveOptions.resource, resolveOptions.loaders, { translateSource } );
+	compiler.hooks.compilation.tap( 'CKEditor5Plugin', compilation => {
+		compilation.hooks.normalModuleLoader.tap( 'CKEditor5Plugin', ( context, module ) => {
+			const pathToPackage = envUtils.getPathToPackage( cwd, module.resource );
+			module.loaders = envUtils.getLoaders( cwd, module.resource, module.loaders, { translateSource } );
 
 			if ( pathToPackage ) {
 				translationService.loadPackage( pathToPackage );
 			}
-
-			done( null, resolveOptions );
 		} );
 	} );
 
 	// At the end of the compilation add assets generated from the PO files.
-	compiler.plugin( 'emit', ( compilation, done ) => {
+	compiler.hooks.emit.tap( 'CKEditor5Plugin', compilation => {
 		const generatedAssets = translationService.getAssets( {
 			outputDirectory: options.outputDirectory,
 			compilationAssets: compilation.assets
@@ -89,8 +96,6 @@ module.exports = function serveTranslations( compiler, options, translationServi
 				size: () => asset.outputBody.length,
 			};
 		}
-
-		done();
 	} );
 
 	function emitError( error ) {
